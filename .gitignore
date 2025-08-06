@@ -1,0 +1,16 @@
+# Ignore all files and directories by default
+*
+
+# Whitelist specific files required for the project
+!/complex_stress_test.py
+!/hard_stress_test.py
+!/intermediate_stress_test.py
+!/requirements.txt
+!/run_stress_tests.py
+!/simple_stress_test.py
+!/very_hard_stress_test.py
+!/README.md
+
+# Explicitly re-ignore files that should not be tracked, even if they are in a whitelisted directory
+# (This is good practice for files that might be generated inside whitelisted folders)
+!/.gitignore
