@@ -29,7 +29,7 @@ def run_manim_scene(file_path, scene_name, quality="m", log_interval=15):
             "render",
             "--quality", quality,
             "--disable_caching",
-            "--verbosity", "WARNING",  # Reduce verbosity for concise logs
+            "--verbosity", "INFO",  # Use INFO for progress updates
             file_path,
             scene_name
         ]
@@ -48,29 +48,51 @@ def run_manim_scene(file_path, scene_name, quality="m", log_interval=15):
             bufsize=1
         )
         
-        # Monitor with periodic time updates
+        # Monitor with periodic time updates (non-blocking)
         frame_count = 0
-        while True:
-            output = process.stdout.readline()
-            if output == '' and process.poll() is not None:
-                break
-            
+        output_buffer = []
+        
+        def read_output():
+            """Read output in a separate thread to avoid blocking"""
+            try:
+                for line in iter(process.stdout.readline, ''):
+                    if line:
+                        output_buffer.append(line)
+                    else:
+                        break
+            except:
+                pass
+        
+        # Start output reading thread
+        output_thread = threading.Thread(target=read_output)
+        output_thread.daemon = True
+        output_thread.start()
+        
+        # Main monitoring loop with guaranteed periodic updates
+        while process.poll() is None:
             current_time = time.time()
             
-            # Log progress every log_interval seconds
+            # Process any buffered output
+            while output_buffer:
+                output = output_buffer.pop(0)
+                if output and ('INFO' in output or 'frame' in output.lower()):
+                    frame_count += 1
+                    if frame_count % 50 == 0:  # Every 50 frames
+                        elapsed = current_time - start_time
+                        print(f"Progress: {elapsed/60:.1f} min - {frame_count} operations completed")
+            
+            # Log progress every log_interval seconds (guaranteed to run)
             if current_time - last_log_time >= log_interval:
                 elapsed = current_time - start_time
                 print(f"Progress: {elapsed/60:.1f} min elapsed - Still rendering...")
                 last_log_time = current_time
             
-            # Count frames for progress indication
-            if output and ('INFO' in output or 'frame' in output.lower()):
-                frame_count += 1
-                if frame_count % 50 == 0:  # Every 50 frames
-                    elapsed = current_time - start_time
-                    print(f"Progress: {elapsed/60:.1f} min - {frame_count} operations completed")
+            # Sleep briefly to prevent busy waiting
+            time.sleep(0.5)
         
+        # Wait for process to complete and output thread to finish
         process.wait()
+        output_thread.join(timeout=1)
         
         end_time = time.time()
         duration = end_time - start_time

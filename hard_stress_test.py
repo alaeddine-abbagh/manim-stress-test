@@ -49,12 +49,12 @@ class HardStressTest(Scene):
     
     def create_massive_particle_universe(self):
         """Create a massive particle system with complex physics simulation"""
-        # Create 600 particles (optimized for 35-minute target)
+        # Create 400 particles (optimized for 35-minute target)
         particles = VGroup()
         velocities = []
         masses = []
         
-        for i in range(600):
+        for i in range(400):
             mass = 0.5 + np.random.random() * 1.5  # Variable masses
             radius = 0.02 + mass * 0.02
             particle = Dot(radius=radius, color=self.get_temperature_color(i))
@@ -74,8 +74,8 @@ class HardStressTest(Scene):
             velocities.append([vx, vy])
         
         # Animate particles appearing in waves
-        wave_size = 100
-        for wave in range(8):  # 8 waves of 100 particles each
+        wave_size = 80
+        for wave in range(5):  # 5 waves of 80 particles each
             wave_particles = particles[wave*wave_size:(wave+1)*wave_size]
             self.play(
                 LaggedStart(*[FadeIn(particle) for particle in wave_particles], 
@@ -83,8 +83,8 @@ class HardStressTest(Scene):
                 run_time=4
             )
         
-        # Extended physics simulation with N-body interactions (150 frames)
-        for frame in range(150):
+        # Extended physics simulation with N-body interactions (100 frames)
+        for frame in range(100):
             updates = []
             forces = np.zeros((len(particles), 2))
             
@@ -167,15 +167,14 @@ class HardStressTest(Scene):
         
         initial_conditions = [
             [1.0, 1.0, 1.0], [2.0, 1.5, 0.5], [-1.0, -1.0, 1.0], 
-            [1.5, -2.0, 0.8], [0.5, 2.5, -1.2], [-2.0, 0.5, 1.5],
-            [3.0, -1.0, 0.3], [-1.5, 2.0, -0.7]
+            [1.5, -2.0, 0.8], [0.5, 2.5, -1.2], [-2.0, 0.5, 1.5]
         ]
         
-        colors = [RED, BLUE, GREEN, YELLOW, PURPLE, ORANGE, PINK, CYAN]
+        colors = [RED, BLUE, GREEN, YELLOW, PURPLE, ORANGE]
         
         # Generate Lorenz attractor trajectories
         dt = 0.01
-        steps = 6000  # High number of steps optimized for 35-min target
+        steps = 4000  # Optimized number of steps for 35-min target
         
         for i, (x0, y0, z0) in enumerate(initial_conditions):
             points = []
@@ -400,12 +399,12 @@ class HardStressTest(Scene):
         fractal_systems = VGroup()
         
         # System 1: Deep tree fractals
-        for tree_num in range(8):  # Increased from 4
+        for tree_num in range(6):  # Optimized from 8
             tree = VGroup()
-            angle_offset = tree_num * 2 * PI / 8
+            angle_offset = tree_num * 2 * PI / 6
             start_x = 4 * np.cos(angle_offset)
             start_y = 4 * np.sin(angle_offset)
-            create_complex_branch([start_x, start_y, 0], PI/2 + angle_offset, 2.0, 8, tree)  # Deeper recursion
+            create_complex_branch([start_x, start_y, 0], PI/2 + angle_offset, 2.0, 6, tree)  # Optimized recursion depth
             fractal_systems.add(tree)
         
         # System 2: Mandelbrot-inspired patterns
@@ -504,17 +503,17 @@ class HardStressTest(Scene):
         group5 = VGroup()  # NEW: Bezier curve networks
         group6 = VGroup()  # NEW: Mathematical function plots
         
-        # Group 1: Complex rotating shapes (50 objects)
-        for i in range(50):
+        # Group 1: Complex rotating shapes (35 objects)
+        for i in range(35):
             sides = 3 + i % 8
             shape = RegularPolygon(n=sides, radius=0.1 + 0.05 * np.sin(i), color=random_color())
-            angle = i * 2 * PI / 50
+            angle = i * 2 * PI / 35
             radius = 1.5 + 0.5 * np.cos(i * 0.3)
             shape.move_to([radius*np.cos(angle), radius*np.sin(angle), 0])
             group1.add(shape)
         
-        # Group 2: Morphing polygons (40 objects)
-        for i in range(40):
+        # Group 2: Morphing polygons (30 objects)
+        for i in range(30):
             sides = np.random.randint(3, 12)
             poly = RegularPolygon(n=sides, radius=0.15, color=random_color())
             x = np.random.uniform(-4, 4)
@@ -522,8 +521,8 @@ class HardStressTest(Scene):
             poly.move_to([x, y, 0])
             group2.add(poly)
         
-        # Group 3: Dynamic oscillating lines (60 objects)
-        for i in range(60):
+        # Group 3: Dynamic oscillating lines (40 objects)
+        for i in range(40):
             start = [np.random.uniform(-5, 5), np.random.uniform(-4, 4), 0]
             end = [np.random.uniform(-5, 5), np.random.uniform(-4, 4), 0]
             line = Line(start=start, end=end, color=random_color(), stroke_width=2)
@@ -689,7 +688,7 @@ class HardStressTest(Scene):
         """Create an intensive mathematical visualization marathon"""
         # Mathematical sequence 1: Fourier series approximations
         fourier_functions = VGroup()
-        for n in range(1, 20):  # 19 different approximations
+        for n in range(1, 16):  # 15 different approximations
             points = []
             for x in np.linspace(-PI, PI, 100):
                 # Square wave Fourier series
@@ -699,14 +698,14 @@ class HardStressTest(Scene):
                 y *= 0.5  # Scale for display
                 points.append([x, y, 0])
             
-            fourier_curve = VMobject(color=interpolate_color(RED, BLUE, n/20))
+            fourier_curve = VMobject(color=interpolate_color(RED, BLUE, n/16))
             fourier_curve.set_points_as_corners(points)
             fourier_curve.shift([0, n*0.3, 0])  # Stack them
             fourier_functions.add(fourier_curve)
         
         # Mathematical sequence 2: Parametric equations
         parametric_curves = VGroup()
-        for i in range(15):
+        for i in range(12):
             points = []
             for t in np.linspace(0, 4*PI, 200):
                 # Various parametric equations
