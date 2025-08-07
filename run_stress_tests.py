@@ -6,7 +6,7 @@ import threading
 import argparse
 from datetime import datetime
 
-def run_manim_scene(file_path, scene_name, quality="m", log_interval=15):
+def run_manim_scene(file_path, scene_name, quality="m", log_interval=15, test_mode=False):
     """Run a manim scene and measure performance with concise logging"""
     print(f"\n{'='*60}")
     print(f"STARTING: {scene_name} (Quality: {quality})")
@@ -17,10 +17,15 @@ def run_manim_scene(file_path, scene_name, quality="m", log_interval=15):
     start_time = time.time()
     last_log_time = start_time
     
-    # Set FFmpeg path
+    # Set FFmpeg path and test mode environment
     ffmpeg_path = os.path.join(os.getcwd(), "ffmpeg-7.1.1-essentials_build", "bin")
     env = os.environ.copy()
     env["PATH"] = ffmpeg_path + ";" + env.get("PATH", "")
+    
+    # Set test mode environment variable for the stress test scripts
+    if test_mode:
+        env["MANIM_TEST_MODE"] = "true"
+        print("Test Mode: Fast verification enabled for this test")
     
     try:
         # Run manim command
@@ -113,11 +118,22 @@ def run_manim_scene(file_path, scene_name, quality="m", log_interval=15):
             quality_folder = quality_map.get(quality, '720p30')
             
             expected_file_path = os.path.join(os.getcwd(), "media", "videos", script_name_no_ext, quality_folder, f"{scene_name}.mp4")
+            partial_dir = os.path.join(os.getcwd(), "media", "videos", script_name_no_ext, quality_folder, "partial_movie_files", scene_name)
 
+            # Check if final video exists, if not try FFmpeg consolidation
             if os.path.exists(expected_file_path):
                 file_size = os.path.getsize(expected_file_path) / (1024*1024)  # MB
                 print(f"Output: {os.path.basename(expected_file_path)} ({file_size:.1f} MB)")
                 print(f"  Path: {expected_file_path}")
+            elif os.path.exists(partial_dir):
+                print("Final video not found, attempting FFmpeg consolidation...")
+                success = consolidate_partial_videos(partial_dir, expected_file_path, scene_name)
+                if success and os.path.exists(expected_file_path):
+                    file_size = os.path.getsize(expected_file_path) / (1024*1024)  # MB
+                    print(f"Output: {os.path.basename(expected_file_path)} ({file_size:.1f} MB) [Consolidated]")
+                    print(f"  Path: {expected_file_path}")
+                else:
+                    print(f"FFmpeg consolidation failed. Partial files remain in: {partial_dir}")
             else:
                 print(f"Output: Video file not found at expected path: {expected_file_path}")
         else:
@@ -129,6 +145,92 @@ def run_manim_scene(file_path, scene_name, quality="m", log_interval=15):
     except Exception as e:
         print(f"ERROR: {str(e)}")
         return None, False
+
+def consolidate_partial_videos(partial_dir, output_path, scene_name):
+    """Consolidate partial video files using FFmpeg"""
+    try:
+        # Find all partial video files
+        partial_files = []
+        if os.path.exists(partial_dir):
+            for file in sorted(os.listdir(partial_dir)):
+                if file.endswith('.mp4'):
+                    partial_files.append(os.path.join(partial_dir, file))
+        
+        if not partial_files:
+            print("No partial video files found for consolidation.")
+            return False
+        
+        print(f"Found {len(partial_files)} partial video files to consolidate")
+        
+        # Create file list for FFmpeg with absolute paths
+        file_list_path = os.path.join(partial_dir, 'file_list.txt')
+        with open(file_list_path, 'w', encoding='utf-8') as f:
+            for file_path in partial_files:
+                # Convert to absolute path and use forward slashes for FFmpeg
+                abs_path = os.path.abspath(file_path)
+                escaped_path = abs_path.replace('\\', '/').replace("'", "\\'")
+                f.write(f"file '{escaped_path}'\n")
+        
+        print(f"Created file list: {file_list_path}")
+        
+        # Get FFmpeg path
+        ffmpeg_path = os.path.join(os.getcwd(), "ffmpeg-7.1.1-essentials_build", "bin", "ffmpeg.exe")
+        if not os.path.exists(ffmpeg_path):
+            # Try system FFmpeg
+            ffmpeg_path = "ffmpeg"
+        
+        # Ensure output directory exists
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        
+        # Run FFmpeg consolidation
+        ffmpeg_cmd = [
+            ffmpeg_path,
+            '-f', 'concat',
+            '-safe', '0',
+            '-i', file_list_path,
+            '-c', 'copy',
+            '-y',  # Overwrite output file
+            output_path
+        ]
+        
+        print(f"Running FFmpeg consolidation...")
+        print(f"Command: {' '.join(ffmpeg_cmd)}")
+        
+        result = subprocess.run(
+            ffmpeg_cmd,
+            capture_output=True,
+            text=True,
+            cwd=os.getcwd()
+        )
+        
+        if result.returncode == 0:
+            print("SUCCESS: FFmpeg consolidation completed successfully!")
+            
+            # Clean up partial files and file list
+            try:
+                os.remove(file_list_path)
+                for file_path in partial_files:
+                    if os.path.exists(file_path):
+                        os.remove(file_path)
+                # Remove partial directory if empty
+                if os.path.exists(partial_dir) and not os.listdir(partial_dir):
+                    os.rmdir(partial_dir)
+                print("INFO: Cleaned up partial files")
+            except Exception as cleanup_error:
+                print(f"WARNING: Could not clean up partial files: {cleanup_error}")
+            
+            return True
+        else:
+            print(f"ERROR: FFmpeg consolidation failed:")
+            print(f"Exit code: {result.returncode}")
+            print(f"Error: {result.stderr}")
+            if result.stdout:
+                print(f"Output: {result.stdout}")
+            return False
+            
+    except Exception as e:
+        print(f"ERROR: Error during FFmpeg consolidation: {str(e)}")
+        return False
 
 def save_report(results, start_time_str, end_time_str, test_names=None):
     """Save final test report to file"""
@@ -202,6 +304,8 @@ def main():
                        default='m', help='Video quality (l=low, m=medium, h=high, p=production, k=4k)')
     parser.add_argument('--log-interval', type=int, default=15, 
                        help='Logging interval in seconds (default: 15)')
+    parser.add_argument('--test-mode', action='store_true', 
+                       help='Run fast test versions for quick script verification (~30 seconds each)')
     
     args = parser.parse_args()
     
@@ -209,6 +313,8 @@ def main():
     print(f"Test Selection: {args.test}")
     print(f"Quality: {args.quality}")
     print(f"Log Interval: {args.log_interval}s")
+    if args.test_mode:
+        print("TEST MODE: Fast verification runs enabled")
     
     start_time_str = time.strftime('%Y-%m-%d %H:%M:%S')
     print(f"Start Time: {start_time_str}")
@@ -216,12 +322,24 @@ def main():
     results = {}
     
     # Test definitions: (file, scene_class, expected_duration_seconds)
-    tests = {
-        'simple': ('simple_stress_test.py', 'SimpleStressTest', 300),        # 5 min
-        'intermediate': ('intermediate_stress_test.py', 'IntermediateStressTest', 1200),  # 20 min
-        'hard': ('hard_stress_test.py', 'HardStressTest', 2100),             # 35 min
-        'very-hard': ('very_hard_stress_test.py', 'VeryHardStressTest', 5400) # 90 min
-    }
+    if args.test_mode:
+        # Fast test mode versions for quick verification (~30 seconds each)
+        tests = {
+            'simple': ('simple_stress_test.py', 'SimpleStressTest', 30),         # 30 sec
+            'intermediate': ('intermediate_stress_test.py', 'IntermediateStressTest', 30),  # 30 sec
+            'hard': ('hard_stress_test.py', 'HardStressTest', 30),              # 30 sec
+            'very-hard': ('very_hard_stress_test.py', 'VeryHardStressTest', 30)  # 30 sec
+        }
+        print("\nTEST MODE: Using fast verification parameters")
+        print("Each test will run for approximately 30 seconds for quick script verification.")
+    else:
+        # Normal production test durations
+        tests = {
+            'simple': ('simple_stress_test.py', 'SimpleStressTest', 300),        # 5 min
+            'intermediate': ('intermediate_stress_test.py', 'IntermediateStressTest', 1200),  # 20 min
+            'hard': ('hard_stress_test.py', 'HardStressTest', 2100),             # 35 min
+            'very-hard': ('very_hard_stress_test.py', 'VeryHardStressTest', 5400) # 90 min
+        }
     
     # Determine which tests to run
     if args.test == 'all':
@@ -236,7 +354,7 @@ def main():
                 file_path, scene_name, expected_duration = tests[test_name]
                 print(f"\n*** Running {test_name.upper()} Test ***")
                 
-                duration, success = run_manim_scene(file_path, scene_name, args.quality, args.log_interval)
+                duration, success = run_manim_scene(file_path, scene_name, args.quality, args.log_interval, args.test_mode)
                 results[test_name.capitalize()] = {
                     "duration": duration, 
                     "success": success, 
