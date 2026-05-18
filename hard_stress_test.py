@@ -708,7 +708,7 @@ class HardStressTest(Scene):
         
         for obj in all_objects:
             # All objects converge to center then explode outward
-            animations.append(obj.animate.move_to(ORIGIN).scale(0.1))
+            implosion_animations.append(obj.animate.move_to(ORIGIN).scale(0.1))
         
         self.play(*implosion_animations, run_time=4)
         
@@ -869,5 +869,5 @@ class HardStressTest(Scene):
 def random_color():
     """Generate a random color"""
     colors = [RED, BLUE, GREEN, YELLOW, PURPLE, ORANGE, PINK, GRAY, 
-              TEAL, MAROON, GOLD, LIGHT_BLUE, LIGHT_GREEN, LIGHT_PINK]
+              TEAL, MAROON, GOLD, LIGHT_PINK]
     return np.random.choice(colors)
